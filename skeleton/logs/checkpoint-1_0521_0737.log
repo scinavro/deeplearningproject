@@ -1,0 +1,60 @@
+[Summary]
+Whole-grid accuracy: 0.00 %
+Pixel-level accuracy: 8.34 %
+[Total evaluation time]: 0:03:07.958514
+
+[Model]: meta-llama/Llama-3.2-3B-Instruct
+[Adapter]: artifacts/checkpoint-final
+[Start time]: 2025-05-21 07:37:26.869438
+[Num examples]: 50
+
+[Task 1] ded97339: match=0, pixel_accuracy=4.44%
+[Task 2] 673ef223: match=0, pixel_accuracy=2.78%
+[Task 3] c3f564a4: match=0, pixel_accuracy=10.00%
+[Task 4] cbded52d: match=0, pixel_accuracy=11.11%
+[Task 5] 99b1bc43: match=0, pixel_accuracy=33.33%
+[Task 6] 29c11459: match=0, pixel_accuracy=11.43%
+[Task 7] 95990924: match=0, pixel_accuracy=12.50%
+[Task 8] a78176bb: match=0, pixel_accuracy=12.50%
+[Task 9] a61f2674: match=0, pixel_accuracy=8.57%
+[Task 10] bd4472b8: match=0, pixel_accuracy=6.67%
+[Task 11] a61f2674: match=0, pixel_accuracy=17.86%
+[Task 12] f1cefba8: match=0, pixel_accuracy=11.11%
+[Task 13] 6fa7a44f: match=0, pixel_accuracy=16.67%
+[Task 14] d687bc17: match=0, pixel_accuracy=8.33%
+[Task 15] 00d62c1b: match=0, pixel_accuracy=4.17%
+[Task 16] f15e1fac: match=0, pixel_accuracy=11.90%
+[Task 17] a87f7484: match=0, pixel_accuracy=0.00%
+[Task 18] 8d510a79: match=0, pixel_accuracy=4.17%
+[Task 19] 28e73c20: match=0, pixel_accuracy=12.50%
+[Task 20] e8593010: match=0, pixel_accuracy=8.16%
+[Task 21] 3631a71a: match=0, pixel_accuracy=8.00%
+[Task 22] ded97339: match=0, pixel_accuracy=9.00%
+[Task 23] e8593010: match=0, pixel_accuracy=7.50%
+[Task 24] 5c0a986e: match=0, pixel_accuracy=11.11%
+[Task 25] 9172f3a0: match=0, pixel_accuracy=13.89%
+[Task 26] e98196ab: match=0, pixel_accuracy=0.00%
+[Task 27] 2dc579da: match=0, pixel_accuracy=0.00%
+[Task 28] 025d127b: match=0, pixel_accuracy=16.67%
+[Task 29] 995c5fa3: match=0, pixel_accuracy=0.00%
+[Task 30] 4c4377d9: match=0, pixel_accuracy=6.25%
+[Task 31] bbc9ae5d: match=0, pixel_accuracy=6.25%
+[Task 32] fcc82909: match=0, pixel_accuracy=12.50%
+[Task 33] b1948b0a: match=0, pixel_accuracy=5.56%
+[Task 34] d037b0a7: match=0, pixel_accuracy=9.52%
+[Task 35] ce22a75a: match=0, pixel_accuracy=6.25%
+[Task 36] b91ae062: match=0, pixel_accuracy=12.50%
+[Task 37] 8eb1be9a: match=0, pixel_accuracy=15.62%
+[Task 38] 3de23699: match=0, pixel_accuracy=0.00%
+[Task 39] b1948b0a: match=0, pixel_accuracy=7.41%
+[Task 40] ba26e723: match=0, pixel_accuracy=0.00%
+[Task 41] 00d62c1b: match=0, pixel_accuracy=4.76%
+[Task 42] 7b6016b9: match=0, pixel_accuracy=7.41%
+[Task 43] 0520fde7: match=0, pixel_accuracy=0.00%
+[Task 44] c909285e: match=0, pixel_accuracy=22.22%
+[Task 45] ff805c23: match=0, pixel_accuracy=0.00%
+[Task 46] a79310a0: match=0, pixel_accuracy=4.76%
+[Task 47] 1190e5a7: match=0, pixel_accuracy=0.00%
+[Task 48] ff28f65a: match=0, pixel_accuracy=0.00%
+[Task 49] e48d4e1a: match=0, pixel_accuracy=12.50%
+[Task 50] f8c80d96: match=0, pixel_accuracy=8.89%

@@ -1,0 +1,67 @@
+[Summary]
+Whole-grid accuracy: 0.00 %
+Pixel-level accuracy: 37.45 %
+[Evaluation time]: 0:07:31.741833
+[Model]: meta-llama/Llama-3.2-3B-Instruct
+[Checkpoint]: checkpoints/checkpoint-4
+[# Evaluation Tasks]: 50
+
+[Hyperparameters Used]
+LORA_RANK: 8
+LORA_ALPHA: 16
+LORA_DROPOUT: 0.05
+LEARNING_RATE: 0.0002
+CHECKPOINT_NAME: checkpoint-3
+MAX_WINDOWS_PER_TASK: 10
+MAX_STEPS: 2700
+
+[Task 1] e179c5f4: match=0, pixel_acc=8.57%
+[Task 2] 694f12f3: match=0, pixel_acc=92.00%
+[Task 3] 0a938d79: match=0, pixel_acc=8.33%
+[Task 4] ce9e57f2: match=0, pixel_acc=91.43%
+[Task 5] ec883f72: match=0, pixel_acc=98.61%
+[Task 6] d06dbe63: match=0, pixel_acc=4.76%
+[Task 7] 22233c11: match=0, pixel_acc=98.33%
+[Task 8] 40853293: match=0, pixel_acc=10.94%
+[Task 9] 1f876c06: match=0, pixel_acc=81.48%
+[Task 10] 868de0fa: match=0, pixel_acc=80.00%
+[Task 11] 1e32b0e9: match=0, pixel_acc=6.67%
+[Task 12] 90f3ed37: match=0, pixel_acc=96.67%
+[Task 13] 95990924: match=0, pixel_acc=82.22%
+[Task 14] d89b689b: match=0, pixel_acc=90.00%
+[Task 15] 8f2ea7aa: match=0, pixel_acc=62.50%
+[Task 16] c3f564a4: match=0, pixel_acc=11.11%
+[Task 17] 28e73c20: match=0, pixel_acc=2.86%
+[Task 18] beb8660c: match=0, pixel_acc=12.96%
+[Task 19] b60334d2: match=0, pixel_acc=8.93%
+[Task 20] 178fcbfb: match=0, pixel_acc=8.33%
+[Task 21] c8f0f002: match=0, pixel_acc=12.50%
+[Task 22] 6cdd2623: match=0, pixel_acc=69.14%
+[Task 23] 2bee17df: match=0, pixel_acc=12.50%
+[Task 24] ed36ccf7: match=0, pixel_acc=0.00%
+[Task 25] b94a9452: match=0, pixel_acc=0.00%
+[Task 26] ef135b50: match=0, pixel_acc=86.67%
+[Task 27] ba26e723: match=0, pixel_acc=6.67%
+[Task 28] 0ca9ddb6: match=0, pixel_acc=7.14%
+[Task 29] f25ffba3: match=0, pixel_acc=78.89%
+[Task 30] 834ec97d: match=0, pixel_acc=71.11%
+[Task 31] a699fb00: match=0, pixel_acc=14.58%
+[Task 32] 3ac3eb23: match=0, pixel_acc=0.00%
+[Task 33] 22eb0ac0: match=0, pixel_acc=50.00%
+[Task 34] 22168020: match=0, pixel_acc=9.52%
+[Task 35] f35d900a: match=0, pixel_acc=10.00%
+[Task 36] 9edfc990: match=0, pixel_acc=14.29%
+[Task 37] 623ea044: match=0, pixel_acc=83.33%
+[Task 38] 794b24be: match=0, pixel_acc=0.00%
+[Task 39] 99b1bc43: match=0, pixel_acc=7.41%
+[Task 40] aedd82e4: match=0, pixel_acc=95.83%
+[Task 41] 8eb1be9a: match=0, pixel_acc=85.00%
+[Task 42] a48eeaf7: match=0, pixel_acc=75.00%
+[Task 43] 8403a5d5: match=0, pixel_acc=8.57%
+[Task 44] 42a50994: match=0, pixel_acc=97.00%
+[Task 45] 662c240a: match=0, pixel_acc=0.00%
+[Task 46] d2abd087: match=0, pixel_acc=0.00%
+[Task 47] d8c310e9: match=0, pixel_acc=0.00%
+[Task 48] 8d5021e8: match=0, pixel_acc=0.00%
+[Task 49] 6fa7a44f: match=0, pixel_acc=12.50%
+[Task 50] 6d0160f0: match=0, pixel_acc=8.00%

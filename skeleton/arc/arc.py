@@ -35,10 +35,15 @@ class ARCSolver:
             torch_dtype=torch.float16, # Set the data type for the model
             use_cache=False, # Disable caching to save memory
             device_map='auto', # Automatically map the model to available devices (e.g., GPUs)
-            token=token
+            token=token,
         )
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_id, token=token)
+
+        if self.tokenizer.pad_token is None:
+            print("⚠️ pad_token not set. Setting to eos_token.")
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
         self.pixel_ids = [
             self.tokenizer.encode(str(i), add_special_tokens=False)[0] for i in range(10)
@@ -132,84 +137,96 @@ class ARCSolver:
         }
 
 
-    def train(self, train_dataset):
-        """
-        Fine-tune the current HuggingFace LLaMA model using PEFT (LoRA).
-        """
+    # def train(self, train_dataset, checkpoint_dir="artifacts/checkpoint-final"):
+    #     """
+    #     Fine-tune the current HuggingFace LLaMA model using PEFT (LoRA).
+    #     """
 
-        from peft import prepare_model_for_kbit_training, get_peft_model, LoraConfig, TaskType
-        from transformers import Trainer, TrainingArguments
-        from datasets import Dataset
+    #     from peft import prepare_model_for_kbit_training, get_peft_model, LoraConfig, TaskType
+    #     from transformers import Trainer, TrainingArguments
+    #     from datasets import Dataset
+    #     from sklearn.model_selection import train_test_split
 
-        # 1. 패딩 토큰 설정
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-            self.model.resize_token_embeddings(len(self.tokenizer))
+    #     # 1. Set pad token
+    #     if self.tokenizer.pad_token is None:
+    #         self.tokenizer.pad_token = self.tokenizer.eos_token
+    #         self.model.resize_token_embeddings(len(self.tokenizer))
 
-        # 2. 프롬프트 텍스트 생성
-        texts = []
-        for dp in train_dataset:
-            prompt = self.format_prompt(dp)
-            text = self.tokenizer.decode(prompt['input_ids'], skip_special_tokens=True)
-            texts.append({"text": text})
+    #     # 2. Build prompts
+    #     texts = []
+    #     for dp in train_dataset:
+    #         prompt = self.format_prompt(dp)
+    #         text = self.tokenizer.decode(prompt['input_ids'], skip_special_tokens=True)
+    #         texts.append({"text": text})
 
-        dataset = Dataset.from_list(texts)
+    #     # 3. Split train / validation sets (80/20)
+    #     train_texts, val_texts = train_test_split(texts, test_size=0.2, random_state=42)
 
-        # 3. LoRA 구성
-        self.model = prepare_model_for_kbit_training(self.model)
+    #     # 4. Tokenize
+    #     def tokenize(example):
+    #         tokenized = self.tokenizer(
+    #             example["text"],
+    #             truncation=True,
+    #             padding="max_length",
+    #             max_length=256,
+    #         )
+    #         tokenized["labels"] = tokenized["input_ids"].copy()
+    #         return tokenized
 
-        lora_config = LoraConfig(
-            r=8,
-            lora_alpha=16,
-            target_modules=["q_proj", "v_proj"],
-            lora_dropout=0.05,
-            bias="none",
-            task_type=TaskType.CAUSAL_LM,
-        )
-        self.model = get_peft_model(self.model, lora_config)
+    #     train_dataset_tok = Dataset.from_list(train_texts).map(tokenize)
+    #     val_dataset_tok = Dataset.from_list(val_texts).map(tokenize)
 
-        # 4. 토크나이즈 함수
-        def tokenize(example):
-            tokenized = self.tokenizer(
-                example["text"],
-                truncation=True,
-                padding="max_length",
-                max_length=64,  # ✅ OOM 방지를 위해 작게 설정
-            )
-            tokenized["labels"] = tokenized["input_ids"].copy()
-            return tokenized
+    #     train_dataset_tok.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
+    #     val_dataset_tok.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
 
-        tokenized_dataset = dataset.map(tokenize)
-        tokenized_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
+    #     # 5. Prepare LoRA
+    #     self.model = prepare_model_for_kbit_training(self.model)
 
-        # 5. 학습 설정
-        training_args = TrainingArguments(
-            output_dir="artifacts/checkpoint-final",
-            per_device_train_batch_size=1,
-            gradient_accumulation_steps=1,
-            num_train_epochs=3,
-            logging_steps=10,
-            learning_rate=2e-4,
-            bf16=torch.cuda.is_bf16_supported(),
-            optim="paged_adamw_8bit",
-            lr_scheduler_type="cosine",
-            save_strategy="no",
-            report_to="none",
-        )
+    #     lora_config = LoraConfig(
+    #         r=8,
+    #         lora_alpha=16,
+    #         target_modules=["q_proj", "v_proj"],
+    #         lora_dropout=0.05,
+    #         bias="none",
+    #         task_type=TaskType.CAUSAL_LM,
+    #     )
+    #     self.model = get_peft_model(self.model, lora_config)
 
-        # 6. Trainer 실행
-        trainer = Trainer(
-            model=self.model,
-            args=training_args,
-            train_dataset=tokenized_dataset,
-            tokenizer=self.tokenizer,
-        )
+    #     # 6. Training arguments with automatic best model selection
+    #     training_args = TrainingArguments(
+    #         output_dir=checkpoint_dir,
+    #         per_device_train_batch_size=1,
+    #         gradient_accumulation_steps=1,
+    #         num_train_epochs=2,  # 조절 가능
+    #         logging_steps=10,
+    #         learning_rate=2e-4,
+    #         bf16=torch.cuda.is_bf16_supported(),
+    #         optim="paged_adamw_8bit",
+    #         lr_scheduler_type="cosine",
+    #         eval_strategy="epoch",
+    #         save_strategy="epoch",
+    #         save_total_limit=1,
+    #         load_best_model_at_end=True,
+    #         metric_for_best_model="loss",
+    #         greater_is_better=False,
+    #         report_to="none",
+    #     )
 
-        trainer.train()
+    #     # 7. Trainer
+    #     trainer = Trainer(
+    #         model=self.model,
+    #         args=training_args,
+    #         train_dataset=train_dataset_tok,
+    #         eval_dataset=val_dataset_tok,
+    #         tokenizer=self.tokenizer,
+    #     )
 
-        # 7. 모델 저장
-        self.model.save_pretrained("artifacts/checkpoint-final")
-        self.tokenizer.save_pretrained("artifacts/checkpoint-final")
+    #     trainer.train()
+
+    #     # 8. Save best model
+    #     self.model.save_pretrained(checkpoint_dir)
+    #     self.tokenizer.save_pretrained(checkpoint_dir)
+
 
 
     def predict(self, examples, questions_input):
@@ -247,7 +264,8 @@ class ARCSolver:
         }
 
         prompt = self.format_prompt(datapoint)
-        input_ids = torch.tensor(prompt['input_ids'], dtype=torch.long).to(self.device).view(1, -1)
+        input_ids = torch.tensor(prompt['input_ids'], dtype=torch.long).unsqueeze(0).to(self.device)
+        attention_mask = (input_ids != self.tokenizer.pad_token_id).long()
 
         config = GenerationConfig(
             do_sample=False,
@@ -257,6 +275,7 @@ class ARCSolver:
 
         output = self.model.generate(
             input_ids=input_ids,
+            attention_mask=attention_mask,
             generation_config=config,
         ).squeeze().cpu()
         N_prompt = input_ids.numel()
@@ -283,31 +302,12 @@ class ARCSolver:
 
         return grid
 
-    def prepare_evaluation(self):
+    def prepare_evaluation(self, checkpoint_dir="artifacts/checkpoint-final"):
         """
         Load pretrained weight, make model eval mode, etc.
         """
-        self.model.load_adapter("artifacts/checkpoint-final")
+        from peft import PeftModel
+        self.model = PeftModel.from_pretrained(self.model, checkpoint_dir)
         self.model.eval()
 
-
-if __name__ == "__main__":
-    from arc import ARCSolver
-    import json, os
-
-    solver = ARCSolver()
-    dataset_dir = "/workspace/dataset"
-    train_data = []
-
-    for fn in os.listdir(dataset_dir):
-        if not fn.endswith(".json"): continue
-        with open(os.path.join(dataset_dir, fn)) as f:
-            ex = json.load(f)
-            if len(ex) >= 4:
-                train_data.append({
-                    "train": ex[:3],
-                    "test": [ex[3]]
-                })
-
-    solver.train(train_data[:20])
 
