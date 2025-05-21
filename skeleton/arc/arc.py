@@ -31,7 +31,7 @@ class ARCSolver:
             model_id,
             trust_remote_code=True, # Allow the model to use custom code from the repository
             quantization_config=bnb_config, # Apply the 4-bit quantization configuration
-            attn_implementation='sdpa', # Use scaled-dot product attention for better performance
+            attn_implementation='eager', # Use scaled-dot product attention for better performance
             torch_dtype=torch.float16, # Set the data type for the model
             use_cache=False, # Disable caching to save memory
             device_map='auto', # Automatically map the model to available devices (e.g., GPUs)
@@ -134,10 +134,83 @@ class ARCSolver:
 
     def train(self, train_dataset):
         """
-        Train a model with train_dataset.
-        Read a project documentation for a description of `examples` and `question`.
+        Fine-tune the current HuggingFace LLaMA model using PEFT (LoRA).
         """
-        pass
+
+        from peft import prepare_model_for_kbit_training, get_peft_model, LoraConfig, TaskType
+        from transformers import Trainer, TrainingArguments
+        from datasets import Dataset
+
+        # 1. 패딩 토큰 설정
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.model.resize_token_embeddings(len(self.tokenizer))
+
+        # 2. 프롬프트 텍스트 생성
+        texts = []
+        for dp in train_dataset:
+            prompt = self.format_prompt(dp)
+            text = self.tokenizer.decode(prompt['input_ids'], skip_special_tokens=True)
+            texts.append({"text": text})
+
+        dataset = Dataset.from_list(texts)
+
+        # 3. LoRA 구성
+        self.model = prepare_model_for_kbit_training(self.model)
+
+        lora_config = LoraConfig(
+            r=8,
+            lora_alpha=16,
+            target_modules=["q_proj", "v_proj"],
+            lora_dropout=0.05,
+            bias="none",
+            task_type=TaskType.CAUSAL_LM,
+        )
+        self.model = get_peft_model(self.model, lora_config)
+
+        # 4. 토크나이즈 함수
+        def tokenize(example):
+            tokenized = self.tokenizer(
+                example["text"],
+                truncation=True,
+                padding="max_length",
+                max_length=64,  # ✅ OOM 방지를 위해 작게 설정
+            )
+            tokenized["labels"] = tokenized["input_ids"].copy()
+            return tokenized
+
+        tokenized_dataset = dataset.map(tokenize)
+        tokenized_dataset.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
+
+        # 5. 학습 설정
+        training_args = TrainingArguments(
+            output_dir="artifacts/checkpoint-final",
+            per_device_train_batch_size=1,
+            gradient_accumulation_steps=1,
+            num_train_epochs=3,
+            logging_steps=10,
+            learning_rate=2e-4,
+            bf16=torch.cuda.is_bf16_supported(),
+            optim="paged_adamw_8bit",
+            lr_scheduler_type="cosine",
+            save_strategy="no",
+            report_to="none",
+        )
+
+        # 6. Trainer 실행
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=tokenized_dataset,
+            tokenizer=self.tokenizer,
+        )
+
+        trainer.train()
+
+        # 7. 모델 저장
+        self.model.save_pretrained("artifacts/checkpoint-final")
+        self.tokenizer.save_pretrained("artifacts/checkpoint-final")
+
 
     def predict(self, examples, questions_input):
         """
@@ -198,8 +271,8 @@ class ARCSolver:
         if train_input.shape == train_output.shape:
             x, y = test_input.shape
         else:
-            x = (train_output.shape[0] // train_input.shape[0]) * test_input.shape[0]
-            y = (train_output.shape[1] // train_input.shape[1]) * test_input.shape[1]
+            x = (train_output.shape[0] * test_input.shape[0]) // train_input.shape[0]
+            y = (train_output.shape[1] * test_input.shape[1]) // train_input.shape[1]
 
         try:
             grid = np.array(self.parse_grid(output))
@@ -219,8 +292,22 @@ class ARCSolver:
 
 
 if __name__ == "__main__":
+    from arc import ARCSolver
+    import json, os
+
     solver = ARCSolver()
+    dataset_dir = "/workspace/dataset"
+    train_data = []
 
+    for fn in os.listdir(dataset_dir):
+        if not fn.endswith(".json"): continue
+        with open(os.path.join(dataset_dir, fn)) as f:
+            ex = json.load(f)
+            if len(ex) >= 4:
+                train_data.append({
+                    "train": ex[:3],
+                    "test": [ex[3]]
+                })
 
-
+    solver.train(train_data[:20])
 
