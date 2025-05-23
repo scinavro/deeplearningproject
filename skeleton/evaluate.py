@@ -1,7 +1,7 @@
 import os
 import json
 import random
-import datetime
+import time, datetime
 import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
@@ -10,15 +10,10 @@ from transformers import set_seed
 from datasets import Dataset
 from zoneinfo import ZoneInfo
 
-MAX_DATA = 100
-CHECKPOINT_BASE_DIR = "checkpoints/loss-only-with-output-grid-2"
+from utils import split_examples
 
-def split_examples(task_examples, train_ratio=0.9, seed=42):
-    rnd = random.Random(seed)
-    task_examples = task_examples.copy()
-    rnd.shuffle(task_examples)
-    split = int(len(task_examples) * train_ratio)
-    return task_examples[:split], task_examples[split:]
+MAX_DATA = 1  # number of tasks to evaluate (1 set eval / 1 task)
+CHECKPOINT_BASE_DIR = "checkpoints/task-cycle-with-epoch-2"
 
 def check_match_and_pixel_accuracy(pred, truth):
     pred = np.array(pred, dtype=np.uint8)
@@ -78,25 +73,6 @@ def evaluate_checkpoint(checkpoint_dir, dataset, solver_token, ckpt_idx, total_c
     pixel_acc = (pixel_correct / pixel_total) * 100
     return whole_acc, pixel_acc, task_lines
 
-def find_best_checkpoint(base_dir, dataset, token):
-    candidates = []
-    subdirs = [d for d in os.listdir(base_dir) if d.startswith("checkpoint-") or d == "checkpoint-final"]
-    subdirs.sort(key=lambda x: (x != "checkpoint-final", int(x.split("-")[-1]) if x != "checkpoint-final" else float("inf")))
-
-    for idx, name in enumerate(subdirs):
-        path = os.path.join(base_dir, name)
-        if os.path.isdir(path):
-            whole_acc, pixel_acc, task_lines = evaluate_checkpoint(path, dataset, token, idx, len(subdirs))
-            print(f"{name}: whole={whole_acc:.2f}%, pixel={pixel_acc:.2f}%")
-            candidates.append((pixel_acc, name, path, whole_acc, task_lines))
-
-    if not candidates:
-        raise ValueError("❌ No valid checkpoints found in directory.")
-
-    best = max(candidates)  # 최대 pixel accuracy 기준
-    print(f"✅ Best checkpoint: {best[1]} (pixel={best[0]:.2f}%)")
-    return best  # (pixel_acc, name, path, whole_acc, task_lines)
-
 def main():
     kst_now = datetime.datetime.now(ZoneInfo("Asia/Seoul"))
 
@@ -107,40 +83,65 @@ def main():
     eval_df = load_data("../dataset", max_data=MAX_DATA)
     eval_dataset = Dataset.from_pandas(eval_df)
 
-    print("🔍 Searching best checkpoint...")
-    best_pixel_acc, best_ckpt_name, best_ckpt_path, best_whole_acc, best_task_lines = find_best_checkpoint(CHECKPOINT_BASE_DIR, eval_dataset, token)
-
-    hyperparams_path = os.path.join(best_ckpt_path, "hyperparams.json")
-    if os.path.exists(hyperparams_path):
-        with open(hyperparams_path) as f:
-            hyperparams = json.load(f)
-    else:
-        hyperparams = {}
-
-    elapsed = datetime.datetime.now(ZoneInfo("Asia/Seoul")) - kst_now
-
-    summary = [
-        f"[Summary]\n",
-        f"Whole-grid accuracy: {best_whole_acc:.2f} %\n",
-        f"Pixel-level accuracy: {best_pixel_acc:.2f} %\n",
-        f"[Model]: {ARCSolver(token).model.config._name_or_path}\n",
-        f"[Checkpoint]: {best_ckpt_path}\n",
-        f"[# Evaluation Tasks]: {len(eval_dataset)}\n",
-        f"[Evaluation time]: {str(elapsed)}\n",
-        "\n[Hyperparameters Used]\n"
-    ]
-    summary += [f"{k}: {v}\n" for k, v in hyperparams.items()]
-    summary += ["\n"]
+    print("🔍 Evaluating all checkpoints...")
+    subdirs = [d for d in os.listdir(CHECKPOINT_BASE_DIR) if d.startswith("checkpoint-") or d == "checkpoint-final"]
+    subdirs.sort(key=lambda x: (x != "checkpoint-final", int(x.split("-")[-1]) if x != "checkpoint-final" else float("inf")))
 
     timestamp = kst_now.strftime("%m%d_%H%M")
-    os.makedirs("logs", exist_ok=True)
-    log_suffix = best_ckpt_name.replace("checkpoint-", f"{CHECKPOINT_BASE_DIR.split('/')[-1]}-")
-    log_path = f"logs/{timestamp}_{log_suffix}.log"
+    log_group = f"{timestamp}_{CHECKPOINT_BASE_DIR.split('/')[-1]}"  # ✅ 수정: 그룹 이름 지정
+    log_dir = os.path.join("logs", log_group)  # ✅ 수정: logs/group_name/
+    os.makedirs(log_dir, exist_ok=True)
 
-    with open(log_path, "w") as f:
-        f.writelines(summary + best_task_lines)
+    for idx, ckpt_name in enumerate(subdirs):
+        ckpt_path = os.path.join(CHECKPOINT_BASE_DIR, ckpt_name)
+        if not os.path.isdir(ckpt_path):
+            continue
+        
+        eval_start = time.time()
+        whole_acc, pixel_acc, task_lines = evaluate_checkpoint(ckpt_path, eval_dataset, token, idx, len(subdirs))
+        eval_end = time.time()
 
-    print(f"✅ Evaluation complete. Log saved to: {log_path}")
+        # ✅ 수정: hyperparams 로딩
+        hyperparams_path = os.path.join(ckpt_path, "hyperparams.json")
+        if os.path.exists(hyperparams_path):
+            with open(hyperparams_path) as f:
+                hyperparams = json.load(f)
+        else:
+            hyperparams = {}
+
+        train_duration_str = hyperparams.pop("train_duration", None)
+        partial_duration_str = hyperparams.pop("train_duration_partial", None)
+        step = hyperparams.pop("step", None)
+
+        elapsed = eval_end-eval_start
+        elapsed_str = str(datetime.timedelta(seconds=round(elapsed)))
+
+        summary = [
+            f"[Summary]\n",
+            f"Whole-grid accuracy: {whole_acc:.2f} %\n",
+            f"Pixel-level accuracy: {pixel_acc:.2f} %\n",
+            f"[Model]: {ARCSolver(token).model.config._name_or_path}\n",
+            f"[Checkpoint]: {ckpt_path}\n",
+            f"[# Evaluation Tasks]: {len(eval_dataset)}\n",
+            f"[Evaluation elapsed time]: {elapsed_str}\n",
+        ]
+
+        summary.append("\n[Training Duration]\n")
+        if train_duration_str:
+            summary.append(f"Total training time:     {train_duration_str}\n")
+        if partial_duration_str:
+            summary.append(f"Until this checkpoint ({step} steps):   {partial_duration_str}\n")
+
+        summary.append("\n[Hyperparameters Used]\n")
+        summary += [f"{k}: {v}\n" for k, v in hyperparams.items()]
+        summary.append("\n")
+
+        # ✅ 수정: log 파일 이름 지정
+        log_path = os.path.join(log_dir, f"{ckpt_name}.log")
+        with open(log_path, "w") as f:
+            f.writelines(summary + task_lines)
+
+        print(f"✅ Saved log: {log_path}")
 
 if __name__ == "__main__":
     main()

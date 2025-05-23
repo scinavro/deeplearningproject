@@ -1,0 +1,121 @@
+[Summary]
+Whole-grid accuracy: 5.00 %
+Pixel-level accuracy: 44.66 %
+[Model]: meta-llama/Llama-3.2-3B-Instruct
+[Checkpoint]: checkpoints/task-cycle-with-epoch-1/checkpoint-1500
+[# Evaluation Tasks]: 100
+[Evaluation elapsed time]: 0:13:25
+
+[Training Duration]
+Until this checkpoint (1500 steps):   0:24:14.719848
+
+[Hyperparameters Used]
+LORA_RANK: 8
+LORA_ALPHA: 16
+LORA_DROPOUT: 0.05
+LEARNING_RATE: 0.0002
+CHECKPOINT_NAME: task-cycle-with-epoch-1
+MAX_WINDOWS_PER_TASK: 2
+NUM_EPOCHS: 3
+MAX_STEPS: 1800
+
+[Task 1] 662c240a: match=0, pixel_acc=0.00%
+[Task 2] d10ecb37: match=0, pixel_acc=0.00%
+[Task 3] 234bbc79: match=0, pixel_acc=0.00%
+[Task 4] 539a4f51: match=0, pixel_acc=0.00%
+[Task 5] 2204b7a8: match=0, pixel_acc=90.00%
+[Task 6] d687bc17: match=0, pixel_acc=76.19%
+[Task 7] a9f96cdd: match=0, pixel_acc=66.67%
+[Task 8] 6d0160f0: match=0, pixel_acc=40.00%
+[Task 9] 178fcbfb: match=0, pixel_acc=0.00%
+[Task 10] c59eb873: match=1, pixel_acc=100.00%
+[Task 11] 1caeab9d: match=0, pixel_acc=80.95%
+[Task 12] fafffa47: match=0, pixel_acc=0.00%
+[Task 13] 62c24649: match=0, pixel_acc=0.00%
+[Task 14] beb8660c: match=0, pixel_acc=18.06%
+[Task 15] b60334d2: match=0, pixel_acc=60.00%
+[Task 16] feca6190: match=0, pixel_acc=0.00%
+[Task 17] f5b8619d: match=0, pixel_acc=0.00%
+[Task 18] 23581191: match=0, pixel_acc=13.89%
+[Task 19] 90f3ed37: match=0, pixel_acc=7.41%
+[Task 20] 9dfd6313: match=0, pixel_acc=24.00%
+[Task 21] d406998b: match=0, pixel_acc=84.00%
+[Task 22] 00d62c1b: match=0, pixel_acc=76.67%
+[Task 23] c444b776: match=0, pixel_acc=81.48%
+[Task 24] d6ad076f: match=0, pixel_acc=91.11%
+[Task 25] 82819916: match=0, pixel_acc=34.29%
+[Task 26] 74dd1130: match=0, pixel_acc=0.00%
+[Task 27] d4469b4b: match=0, pixel_acc=0.00%
+[Task 28] b7249182: match=0, pixel_acc=0.00%
+[Task 29] 4c4377d9: match=0, pixel_acc=50.00%
+[Task 30] 05269061: match=0, pixel_acc=57.14%
+[Task 31] ed36ccf7: match=0, pixel_acc=0.00%
+[Task 32] 6d75e8bb: match=0, pixel_acc=27.78%
+[Task 33] a87f7484: match=0, pixel_acc=0.00%
+[Task 34] 22233c11: match=0, pixel_acc=92.86%
+[Task 35] cce03e0d: match=0, pixel_acc=0.00%
+[Task 36] a5f85a15: match=0, pixel_acc=89.29%
+[Task 37] d89b689b: match=0, pixel_acc=0.00%
+[Task 38] 67385a82: match=0, pixel_acc=91.43%
+[Task 39] 694f12f3: match=0, pixel_acc=93.33%
+[Task 40] 29623171: match=0, pixel_acc=0.00%
+[Task 41] d8c310e9: match=0, pixel_acc=70.00%
+[Task 42] d23f8c26: match=1, pixel_acc=100.00%
+[Task 43] e9afcf9a: match=0, pixel_acc=0.00%
+[Task 44] 4290ef0e: match=0, pixel_acc=0.00%
+[Task 45] e40b9e2f: match=0, pixel_acc=70.00%
+[Task 46] 5daaa586: match=0, pixel_acc=0.00%
+[Task 47] dc1df850: match=0, pixel_acc=41.07%
+[Task 48] 913fb3ed: match=0, pixel_acc=47.62%
+[Task 49] b8825c91: match=0, pixel_acc=90.62%
+[Task 50] 321b1fc6: match=0, pixel_acc=45.83%
+[Task 51] 05f2a901: match=0, pixel_acc=7.50%
+[Task 52] e48d4e1a: match=0, pixel_acc=54.17%
+[Task 53] 1e0a9b12: match=0, pixel_acc=88.89%
+[Task 54] ce22a75a: match=0, pixel_acc=68.75%
+[Task 55] 6855a6e4: match=0, pixel_acc=93.33%
+[Task 56] 7b6016b9: match=0, pixel_acc=11.11%
+[Task 57] 8d5021e8: match=0, pixel_acc=0.00%
+[Task 58] 6455b5f5: match=0, pixel_acc=61.11%
+[Task 59] ef135b50: match=0, pixel_acc=94.44%
+[Task 60] a85d4709: match=0, pixel_acc=25.00%
+[Task 61] cdecee7f: match=0, pixel_acc=0.00%
+[Task 62] d2abd087: match=0, pixel_acc=87.65%
+[Task 63] 28bf18c6: match=0, pixel_acc=0.00%
+[Task 64] d9fac9be: match=1, pixel_acc=100.00%
+[Task 65] c9e6f938: match=0, pixel_acc=82.50%
+[Task 66] bda2d7a6: match=0, pixel_acc=66.67%
+[Task 67] cf98881b: match=0, pixel_acc=0.00%
+[Task 68] 746b3537: match=1, pixel_acc=100.00%
+[Task 69] 3c9b0459: match=0, pixel_acc=55.56%
+[Task 70] b782dc8a: match=0, pixel_acc=19.75%
+[Task 71] 25d8a9c8: match=0, pixel_acc=50.00%
+[Task 72] 7468f01a: match=0, pixel_acc=0.00%
+[Task 73] e73095fd: match=0, pixel_acc=82.22%
+[Task 74] e76a88a6: match=0, pixel_acc=0.00%
+[Task 75] c909285e: match=0, pixel_acc=11.11%
+[Task 76] 09629e4f: match=0, pixel_acc=68.00%
+[Task 77] 75b8110e: match=0, pixel_acc=0.00%
+[Task 78] 5c2c9af4: match=0, pixel_acc=15.62%
+[Task 79] e98196ab: match=0, pixel_acc=77.78%
+[Task 80] 8f2ea7aa: match=0, pixel_acc=43.21%
+[Task 81] e26a3af2: match=1, pixel_acc=100.00%
+[Task 82] 88a62173: match=0, pixel_acc=0.00%
+[Task 83] 90c28cc7: match=0, pixel_acc=0.00%
+[Task 84] c3e719e8: match=0, pixel_acc=0.00%
+[Task 85] 85c4e7cd: match=0, pixel_acc=6.25%
+[Task 86] b91ae062: match=0, pixel_acc=0.00%
+[Task 87] 2013d3e2: match=0, pixel_acc=0.00%
+[Task 88] f25ffba3: match=0, pixel_acc=95.83%
+[Task 89] ff805c23: match=0, pixel_acc=0.00%
+[Task 90] 3de23699: match=0, pixel_acc=0.00%
+[Task 91] a2fd1cf0: match=0, pixel_acc=97.50%
+[Task 92] e3497940: match=0, pixel_acc=91.67%
+[Task 93] b8cdaf2b: match=0, pixel_acc=8.33%
+[Task 94] 4be741c5: match=0, pixel_acc=0.00%
+[Task 95] 2bee17df: match=0, pixel_acc=40.00%
+[Task 96] 794b24be: match=0, pixel_acc=0.00%
+[Task 97] 54d82841: match=0, pixel_acc=17.46%
+[Task 98] d22278a0: match=0, pixel_acc=47.50%
+[Task 99] 5168d44c: match=0, pixel_acc=80.36%
+[Task 100] 91714a58: match=0, pixel_acc=0.00%
