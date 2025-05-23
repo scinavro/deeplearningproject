@@ -40,9 +40,16 @@ class ARCSolver:
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_id, token=token)
 
-        if self.tokenizer.pad_token is None:
-            print("⚠️ pad_token not set. Setting to eos_token.")
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        # pad_token이 정의되지 않았거나 eos_token과 같은 경우
+        if self.tokenizer.pad_token is None or self.tokenizer.pad_token_id == self.tokenizer.eos_token_id:
+            print("⚠️ pad_token이 eos_token과 동일합니다. '<pad>' 토큰을 새로 등록합니다.")
+            
+            # '<pad>'가 없는 경우 추가
+            if "<pad>" not in self.tokenizer.get_vocab():
+                self.tokenizer.add_special_tokens({"pad_token": "<pad>"})
+                print("✅ '<pad>' 토큰이 vocabulary에 추가되었습니다.")
+
+            # 모델 임베딩 사이즈 재조정
             self.model.resize_token_embeddings(len(self.tokenizer))
 
         self.pixel_ids = [
@@ -95,139 +102,60 @@ class ARCSolver:
     def format_prompt(self, datapoint):
         """
         Args:
-            datapoint (dict): contains training data, test input
-        
+            datapoint (dict): contains 'train' and 'test' keys
+
         Returns:
-            prompt (dict): dictionary that contains input ids and additional informations
+            dict with 'input_ids', 'labels', and raw 'input' and 'output' grids
         """
-
         training_data = datapoint['train']
-        input_test_data = datapoint['test'][0]['input']
+        test_input = datapoint['test'][0]['input']
+        test_output = datapoint['test'][0].get('output', None)  # evaluation 때는 'output' 없음
 
-        sys = self.tokenizer.encode("<|begin_of_text|><|start_header_id|>system<|end_header_id|>" + "\n" + system_prompt, add_special_tokens=False)
-        user = self.tokenizer.encode("<|start_header_id|>user<|end_header_id|>" + "\n" + user_message_template1 + "\n", add_special_tokens=False)
-        inp_desc = self.tokenizer.encode("input:\n", add_special_tokens=False)
-        out_desc = self.tokenizer.encode("output:\n", add_special_tokens=False)
+        tokenizer = self.tokenizer
+        eos = tokenizer.eos_token or "<|endoftext|>"
+
+        # 1. System + user 프롬프트
+        sys = tokenizer.encode(
+            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n" + system_prompt,
+            add_special_tokens=False
+        )
+
+        user = tokenizer.encode("<|start_header_id|>user<|end_header_id|>\n", add_special_tokens=False)
+
+        inp_desc = tokenizer.encode("input:\n", add_special_tokens=False)
+        out_desc = tokenizer.encode("output:\n", add_special_tokens=False)
+
         for ex in training_data:
-            inp = ex['input']
-            out = ex['output']
-            inp = self.format_grid(inp)
-            out = self.format_grid(out)
+            inp = self.format_grid(ex['input'])
+            out = self.format_grid(ex['output'])
+            user += inp_desc + inp + out_desc + out
 
-            user += inp_desc
-            user += inp
-            user += out_desc
-            user += out
+        user += tokenizer.encode("\n" + user_message_template2 + "\n", add_special_tokens=False)
+        user += inp_desc + self.format_grid(test_input)
+        user += tokenizer.encode("\n" + user_message_template3, add_special_tokens=False)
 
-        user += self.tokenizer.encode("\n" + user_message_template2 + "\n", add_special_tokens=False)
+        prompt_tokens = sys + user
+        assistant_header = tokenizer.encode("<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n", add_special_tokens=False)
 
-        user += inp_desc
-        user += self.format_grid(input_test_data)
-        user += self.tokenizer.encode("\n" + user_message_template3, add_special_tokens=False)
+        prompt_tokens += assistant_header
 
-
-        messages = sys + user
-        assis = self.tokenizer.encode("<|eot_id|><|start_header_id|>assistant<|end_header_id|>", add_special_tokens=False)
-        messages += assis
+        # 정답 (output grid) 부분 제외하고 마스킹 -> loss 계산 시 정답 부분만 고려
+        if test_output is not None:
+            output_tokens = self.format_grid(test_output)
+            input_ids = prompt_tokens + output_tokens
+            labels = [-100] * len(prompt_tokens) + output_tokens
+        else:
+            # evaluation: output 없음 → 모델이 generate할 것
+            input_ids = prompt_tokens
+            labels = None
 
         return {
-            "input_ids": messages,
-            "input": input_test_data,
-            "train": training_data
+            "input_ids": input_ids,
+            "labels": labels,
+            "input": test_input,
+            "output": test_output,
+            "train": training_data,
         }
-
-
-    # def train(self, train_dataset, checkpoint_dir="artifacts/checkpoint-final"):
-    #     """
-    #     Fine-tune the current HuggingFace LLaMA model using PEFT (LoRA).
-    #     """
-
-    #     from peft import prepare_model_for_kbit_training, get_peft_model, LoraConfig, TaskType
-    #     from transformers import Trainer, TrainingArguments
-    #     from datasets import Dataset
-    #     from sklearn.model_selection import train_test_split
-
-    #     # 1. Set pad token
-    #     if self.tokenizer.pad_token is None:
-    #         self.tokenizer.pad_token = self.tokenizer.eos_token
-    #         self.model.resize_token_embeddings(len(self.tokenizer))
-
-    #     # 2. Build prompts
-    #     texts = []
-    #     for dp in train_dataset:
-    #         prompt = self.format_prompt(dp)
-    #         text = self.tokenizer.decode(prompt['input_ids'], skip_special_tokens=True)
-    #         texts.append({"text": text})
-
-    #     # 3. Split train / validation sets (80/20)
-    #     train_texts, val_texts = train_test_split(texts, test_size=0.2, random_state=42)
-
-    #     # 4. Tokenize
-    #     def tokenize(example):
-    #         tokenized = self.tokenizer(
-    #             example["text"],
-    #             truncation=True,
-    #             padding="max_length",
-    #             max_length=256,
-    #         )
-    #         tokenized["labels"] = tokenized["input_ids"].copy()
-    #         return tokenized
-
-    #     train_dataset_tok = Dataset.from_list(train_texts).map(tokenize)
-    #     val_dataset_tok = Dataset.from_list(val_texts).map(tokenize)
-
-    #     train_dataset_tok.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
-    #     val_dataset_tok.set_format(type="torch", columns=["input_ids", "attention_mask", "labels"])
-
-    #     # 5. Prepare LoRA
-    #     self.model = prepare_model_for_kbit_training(self.model)
-
-    #     lora_config = LoraConfig(
-    #         r=8,
-    #         lora_alpha=16,
-    #         target_modules=["q_proj", "v_proj"],
-    #         lora_dropout=0.05,
-    #         bias="none",
-    #         task_type=TaskType.CAUSAL_LM,
-    #     )
-    #     self.model = get_peft_model(self.model, lora_config)
-
-    #     # 6. Training arguments with automatic best model selection
-    #     training_args = TrainingArguments(
-    #         output_dir=checkpoint_dir,
-    #         per_device_train_batch_size=1,
-    #         gradient_accumulation_steps=1,
-    #         num_train_epochs=2,  # 조절 가능
-    #         logging_steps=10,
-    #         learning_rate=2e-4,
-    #         bf16=torch.cuda.is_bf16_supported(),
-    #         optim="paged_adamw_8bit",
-    #         lr_scheduler_type="cosine",
-    #         eval_strategy="epoch",
-    #         save_strategy="epoch",
-    #         save_total_limit=1,
-    #         load_best_model_at_end=True,
-    #         metric_for_best_model="loss",
-    #         greater_is_better=False,
-    #         report_to="none",
-    #     )
-
-    #     # 7. Trainer
-    #     trainer = Trainer(
-    #         model=self.model,
-    #         args=training_args,
-    #         train_dataset=train_dataset_tok,
-    #         eval_dataset=val_dataset_tok,
-    #         tokenizer=self.tokenizer,
-    #     )
-
-    #     trainer.train()
-
-    #     # 8. Save best model
-    #     self.model.save_pretrained(checkpoint_dir)
-    #     self.tokenizer.save_pretrained(checkpoint_dir)
-
-
 
     def predict(self, examples, questions_input):
         """
@@ -256,49 +184,49 @@ class ARCSolver:
         """
         datapoint = {
             "train": examples,
-            "test": [
-                {
-                    "input": questions_input
-                }
-            ]
+            "test": [{"input": questions_input}]
         }
 
-        prompt = self.format_prompt(datapoint)
+        prompt = self.format_prompt(datapoint)  # test output은 포함 X
         input_ids = torch.tensor(prompt['input_ids'], dtype=torch.long).unsqueeze(0).to(self.device)
         attention_mask = (input_ids != self.tokenizer.pad_token_id).long()
 
         config = GenerationConfig(
             do_sample=False,
-            pad_token_id=self.tokenizer.eos_token_id,
+            pad_token_id=self.tokenizer.pad_token_id,
             max_new_tokens=150,
         )
 
-        output = self.model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            generation_config=config,
-        ).squeeze().cpu()
-        N_prompt = input_ids.numel()
+        with torch.no_grad():
+            output = self.model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                generation_config=config,
+            ).squeeze(0).cpu()
 
-        output = output[N_prompt:].tolist()
-        train_input = np.array(prompt['train'][0]['input'])
-        train_output = np.array(prompt['train'][0]['output'])
+        # 👉 명시적으로 prompt 길이만큼 자르기
+        prompt_len = input_ids.shape[1]
+        gen_tokens = output[prompt_len:].tolist()
+
         test_input = np.array(prompt['input'])
-
-        # LLM-generated grid may have wrong shape
-        # So adjust shape by input-output pairs
-        if train_input.shape == train_output.shape:
-            x, y = test_input.shape
-        else:
-            x = (train_output.shape[0] * test_input.shape[0]) // train_input.shape[0]
-            y = (train_output.shape[1] * test_input.shape[1]) // train_input.shape[1]
-
         try:
-            grid = np.array(self.parse_grid(output))
+            grid_list = self.parse_grid(gen_tokens)
+            grid = np.array([np.array(row) for row in grid_list])
+            # shape 보정 (예전 방식 유지)
+            train_input = np.array(prompt['train'][0]['input'])
+            train_output = np.array(prompt['train'][0]['output'])
+
+            if train_input.shape == train_output.shape:
+                x, y = test_input.shape
+            else:
+                x = (train_output.shape[0] * test_input.shape[0]) // train_input.shape[0]
+                y = (train_output.shape[1] * test_input.shape[1]) // train_input.shape[1]
+
             grid = grid[:x, :y]
-            
+
         except Exception as e:
-            grid = np.random.randint(0, 10, (x, y))
+            print(f"[Warning] parse_grid failed: {e}")
+            grid = np.random.randint(0, 10, (test_input.shape[0], test_input.shape[1]))
 
         return grid
 

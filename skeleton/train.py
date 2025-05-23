@@ -1,8 +1,9 @@
-# train_streaming.py
+# train.py
 
 import os
 import json
 import torch
+import time, datetime
 from tqdm import tqdm
 from arc import ARCSolver
 from datasets import load_dataset
@@ -15,14 +16,13 @@ from utils import split_examples
 LORA_RANK = 8
 LORA_ALPHA = 16
 LORA_DROPOUT = 0.05
-
 LEARNING_RATE = 2e-4
+CHECKPOINT_NAME = "loss-only-with-output-grid-2"
+MAX_WINDOWS_PER_TASK = 40 # 각 task에서 학습할 조합(3+1 in/out)의 최대 개수
+MAX_STEPS = 12000 # 300*max_windows_per_task
+SAVE_EVERY_STEPS = 2000  # 중간 저장 간격
 
-CHECKPOINT_NAME = "checkpoint-5"
-MAX_WINDOWS_PER_TASK = 100 # 각 task에서 학습할 조합(3+1 in/out)의 최대 개수
-MAX_STEPS = 27000 # 최대 300*0.9*max_windows_per_task
-
-def save_hyperparameters(checkpoint_dir):
+def save_hyperparameters(checkpoint_dir, train_duration):
     import json
 
     hyperparams = {
@@ -33,6 +33,7 @@ def save_hyperparameters(checkpoint_dir):
         "CHECKPOINT_NAME": CHECKPOINT_NAME,
         "MAX_WINDOWS_PER_TASK": MAX_WINDOWS_PER_TASK,
         "MAX_STEPS": MAX_STEPS,
+        "train_duration": train_duration,
     }
 
     with open(os.path.join(checkpoint_dir, "hyperparams.json"), "w") as f:
@@ -55,8 +56,8 @@ def merge_json_files(dataset_dir, output_file):
 def main():
     dataset_dir = "../dataset"
     merged_path = "./dataset_stream.jsonl"
-    checkpoint_dir = f"checkpoints/{CHECKPOINT_NAME}"
-    final_checkpoint_dir = checkpoint_dir + "-final"
+    checkpoint_dir_root = f"checkpoints/{CHECKPOINT_NAME}"
+    checkpoint_final_dir = os.path.join(checkpoint_dir_root, "checkpoint-final")
     token = os.getenv("HF_TOKEN_MKK")
 
     # Step 1: merge all json into .jsonl
@@ -74,6 +75,7 @@ def main():
     )
 
     # Step 3: Initialize solver and prepare LoRA model
+    print("Initializing model...")
     solver = ARCSolver(token=token)
     model = solver.model
     tokenizer = solver.tokenizer
@@ -94,10 +96,10 @@ def main():
 
     # Step 4: streaming + sliding window training loop
     print("Starting training loop...")
+    train_start = time.time()
 
     step = 0
     window_size = 3 # 추론 전 3개 input-output 조합 미리보기
-    # best_loss = float("inf")
     early_stop = False
 
     for task in tqdm(stream_dataset):
@@ -108,10 +110,7 @@ def main():
         train_examples, _ = split_examples(examples)  # eval 부분은 무시
         max_start = len(train_examples) - window_size
         
-        windows_processed = 0
-        # task_loss_sum = 0.0
-        # task_loss_count = 0
-        
+        windows_processed = 0        
 
         for start in range(0, max_start, window_size + 1):
             if windows_processed >= MAX_WINDOWS_PER_TASK:
@@ -130,9 +129,9 @@ def main():
 
             prompt = solver.format_prompt(datapoint)
             input_ids = torch.tensor(prompt["input_ids"], dtype=torch.long).unsqueeze(0).to(solver.device)
-            labels = input_ids.clone()
+            labels = torch.tensor(prompt["labels"]).unsqueeze(0).to(solver.device)
             attention_mask = (input_ids != tokenizer.pad_token_id).long()
-
+            
             try:
                 outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
                 loss = outputs.loss
@@ -140,19 +139,23 @@ def main():
                 optimizer.step()
                 optimizer.zero_grad()
 
-                # task_loss_sum += loss.item()
-                # task_loss_count += 1
                 step += 1
+                windows_processed += 1
 
                 if step % MAX_WINDOWS_PER_TASK == 0:
                     print(f"[Step {step}] loss: {loss.item():.4f}")
+
+                # ✅ 중간 저장
+                if step % SAVE_EVERY_STEPS == 0:
+                    step_ckpt_dir = os.path.join(checkpoint_dir_root, f"checkpoint-{step}")
+                    model.save_pretrained(step_ckpt_dir)
+                    tokenizer.save_pretrained(step_ckpt_dir)
+                    save_hyperparameters(step_ckpt_dir, train_duration="intermediate")
 
                 if step >= MAX_STEPS:
                     early_stop = True
                     break
                 
-                windows_processed += 1
-
             except torch.cuda.OutOfMemoryError:
                 print(f"[Step {step}] ⚠️ CUDA OOM: skipping example")
                 torch.cuda.empty_cache()
@@ -162,20 +165,14 @@ def main():
         if early_stop:
             break
 
-        # if task_loss_count > 0:
-        #     avg_task_loss = task_loss_sum / task_loss_count
-        #     if avg_task_loss < best_loss:
-        #         best_loss = avg_task_loss
-        #         print(f"🔥[Step {step}] New best avg loss: {best_loss:.4f} (task: {task['task']})")
-        #         print( f"saving model to {checkpoint_dir}")
-        #         model.save_pretrained(checkpoint_dir)
-        #         tokenizer.save_pretrained(checkpoint_dir)
-        #         save_hyperparameters(checkpoint_dir)
+    train_duration = time.time() - train_start
+    train_duration_str = str(datetime.timedelta(seconds=train_duration))
 
-    print(f"Saving final model to {final_checkpoint_dir}")
-    model.save_pretrained(final_checkpoint_dir)
-    tokenizer.save_pretrained(final_checkpoint_dir)
-    save_hyperparameters(final_checkpoint_dir)
+    print(f"Saving final model to {checkpoint_final_dir}")
+    model.save_pretrained(checkpoint_final_dir)
+    tokenizer.save_pretrained(checkpoint_final_dir)
+    save_hyperparameters(checkpoint_final_dir, train_duration=train_duration_str)
+
 
 if __name__ == "__main__":
     main()
