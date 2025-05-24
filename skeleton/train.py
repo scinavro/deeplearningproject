@@ -1,5 +1,6 @@
 # train.py
 
+import sys
 import os
 import json
 import torch
@@ -11,17 +12,18 @@ from peft import prepare_model_for_kbit_training, get_peft_model, LoraConfig, Ta
 from transformers import get_scheduler
 from torch.optim import AdamW
 
-from utils import split_examples
+from utils import split_examples, setup_logging
 
 LORA_RANK = 8
 LORA_ALPHA = 16
 LORA_DROPOUT = 0.05
 LEARNING_RATE = 2e-4
-CHECKPOINT_NAME = "task-cycle-with-epoch-2"
-MAX_WINDOWS_PER_TASK = 4 # 각 task에서 학습할 조합(3+1 in/out)의 최대 개수
+
+CHECKPOINT_NAME = "temp_test"
+MAX_WINDOWS_PER_TASK = 3 # 각 task에서 학습할 조합(3+1 in/out)의 최대 개수
 NUM_EPOCHS = 18
-MAX_STEPS = 21600 # 원래 step은 300 * MAX_WINDOWS_PER_TASK * NUM_EPOCHS 까지 돌아야함. early_stop 하고 싶으면 그거보다 작게 설정하면 됨.
-SAVE_EVERY_STEPS = 3600  # 중간 저장 간격
+MAX_STEPS = 12 # 원래 step은 300 * MAX_WINDOWS_PER_TASK * NUM_EPOCHS 까지 돌아야함. early_stop 하고 싶으면 그거보다 작게 설정하면 됨.
+SAVE_EVERY_STEPS = 3  # 중간 저장 간격
 
 def save_hyperparameters(checkpoint_dir, train_duration=None, partial_duration=None, step=None):
     import json
@@ -66,6 +68,13 @@ def main():
     checkpoint_dir_root = f"checkpoints/{CHECKPOINT_NAME}"
     checkpoint_final_dir = os.path.join(checkpoint_dir_root, "checkpoint-final")
     token = os.getenv("HF_TOKEN_MKK")
+
+    # 로그 저장 경로 설정
+    os.makedirs(checkpoint_dir_root, exist_ok=True)
+    log_path = os.path.join(checkpoint_dir_root, "training.log")
+
+    # stdout을 로그 파일로 리디렉션
+    setup_logging(log_path)
 
     # Step 1: merge all json into .jsonl
     if not os.path.exists(merged_path):
@@ -181,8 +190,11 @@ def main():
             print(f"[Epoch {epoch+1} | Step {step} | Task {idx+1} | {task['task'].split('.')[0]}] loss: {loss.item():.4f}")
             
             if early_stop:
-                print(f"early_stop by MAX_STEPS={MAX_STEPS}")
                 break
+
+        if early_stop:
+            print(f"early_stop by MAX_STEPS={MAX_STEPS}")
+            break
 
     train_duration = time.time() - train_start
     train_duration_str = str(datetime.timedelta(seconds=round(train_duration)))
@@ -192,10 +204,11 @@ def main():
     tokenizer.save_pretrained(checkpoint_final_dir)
     save_hyperparameters(checkpoint_final_dir, train_duration=train_duration_str, step=step)
 
+    # Auto Evaluation
+    import subprocess
+    evaluate_path = "evaluate.py"
+    checkpoint_arg = f"--checkpoint_dir={checkpoint_dir_root}"
+    subprocess.run(["python", evaluate_path, checkpoint_arg])
 
 if __name__ == "__main__":
     main()
-
-    import subprocess
-    print("🎯 Training completed. Now evaluating the model...")
-    subprocess.run(["python", "evaluate.py"])

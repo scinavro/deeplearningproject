@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from utils import split_examples
 
 MAX_DATA = 1  # number of tasks to evaluate (1 set eval / 1 task)
-CHECKPOINT_BASE_DIR = "checkpoints/task-cycle-with-epoch-2"
+CHECKPOINT_BASE_DIR = "checkpoints/<model name>"
 
 def check_match_and_pixel_accuracy(pred, truth):
     pred = np.array(pred, dtype=np.uint8)
@@ -73,9 +73,19 @@ def evaluate_checkpoint(checkpoint_dir, dataset, solver_token, ckpt_idx, total_c
     pixel_acc = (pixel_correct / pixel_total) * 100
     return whole_acc, pixel_acc, task_lines
 
-def main():
-    kst_now = datetime.datetime.now(ZoneInfo("Asia/Seoul"))
+import argparse
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint_dir", type=str, required=True)
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+    CHECKPOINT_BASE_DIR = args.checkpoint_dir
+    print(f"[Evaluation Target]: {CHECKPOINT_BASE_DIR}")
+
+    kst_now = datetime.datetime.now(ZoneInfo("Asia/Seoul"))
     token = os.getenv("HF_TOKEN_MKK")
     set_seed(1234)
 
@@ -128,7 +138,7 @@ def main():
 
         summary.append("\n[Training Duration]\n")
         if train_duration_str:
-            summary.append(f"Total training time:     {train_duration_str}\n")
+            summary.append(f"Total training time ({step} steps):     {train_duration_str}\n")
         if partial_duration_str:
             summary.append(f"Until this checkpoint ({step} steps):   {partial_duration_str}\n")
 

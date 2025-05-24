@@ -55,3 +55,25 @@ def split_examples(task_examples, train_ratio=0.9, seed=42):
     random.Random(seed).shuffle(task_examples)  # 동일 분할 유지 위해 seed 고정
     split_idx = int(len(task_examples) * train_ratio)
     return task_examples[:split_idx], task_examples[split_idx:]
+
+import sys
+import os
+
+class Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for stream in self.streams:
+            stream.write(data)
+            stream.flush()
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+def setup_logging(log_path):
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    log_file = open(log_path, "w")
+    sys.stdout = Tee(sys.__stdout__, log_file)
+    sys.stderr = Tee(sys.__stderr__, log_file)  # 에러도 함께 기록
