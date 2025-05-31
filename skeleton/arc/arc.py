@@ -17,8 +17,10 @@ class ARCSolver:
         Args:
             token (str): a huggingface token for restricted models such as llama3
         """
+        print("ARCSolver Created")
+
         config_path = "artifacts/config/config.yml"
-        model_id = "meta-llama/Llama-3.2-3B-Instruct"
+        self.model_id = "meta-llama/Llama-3.2-3B-Instruct"
 
         # Configure the BitsAndBytes settings for 4-bit quantization to reduce memory usage
         bnb_config = BitsAndBytesConfig(
@@ -28,7 +30,7 @@ class ARCSolver:
             bnb_4bit_compute_dtype=torch.float16,  # Set the computation data type
         )
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_id,
+            self.model_id,
             trust_remote_code=True, # Allow the model to use custom code from the repository
             quantization_config=bnb_config, # Apply the 4-bit quantization configuration
             attn_implementation='eager', # Use scaled-dot product attention for better performance
@@ -38,7 +40,7 @@ class ARCSolver:
             token=token,
         )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id, token=token)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id, token=token)
 
         # pad_token이 정의되지 않았거나 eos_token과 같은 경우
         if self.tokenizer.pad_token is None or self.tokenizer.pad_token_id == self.tokenizer.eos_token_id:
@@ -139,14 +141,13 @@ class ARCSolver:
 
         prompt_tokens += assistant_header
 
-        # 정답 (output grid) 부분 제외하고 마스킹 -> loss 계산 시 정답 부분만 고려
+        
         if test_output is not None:
             output_tokens = self.format_grid(test_output)
-            input_ids = prompt_tokens + output_tokens
-            labels = [-100] * len(prompt_tokens) + output_tokens
+            input_ids = prompt_tokens + output_tokens   # training: 정답 (output_tokens) 알려줌 -> loss 계산에 사용
+            labels = [-100] * len(prompt_tokens) + output_tokens    # 정답 부분 제외하고 마스킹 (-100) -> loss 계산 시 정답 부분만 고려
         else:
-            # evaluation: output 없음 → 모델이 generate할 것
-            input_ids = prompt_tokens
+            input_ids = prompt_tokens   # evaluation: 모델은 정답 모름 → generate할 것
             labels = None
 
         return {
@@ -209,9 +210,16 @@ class ARCSolver:
         gen_tokens = output[prompt_len:].tolist()
 
         test_input = np.array(prompt['input'])
+
         try:
             grid_list = self.parse_grid(gen_tokens)
-            grid = np.array([np.array(row) for row in grid_list])
+            # Check for row consistency
+            if not grid_list or not all(len(row) == len(grid_list[0]) for row in grid_list):
+                raise ValueError("Inconsistent row lengths in grid_list")
+            grid = np.array(grid_list)
+            if grid.ndim != 2:
+                raise ValueError("Parsed grid is not 2D")
+
             # shape 보정 (예전 방식 유지)
             train_input = np.array(prompt['train'][0]['input'])
             train_output = np.array(prompt['train'][0]['output'])
@@ -238,4 +246,5 @@ class ARCSolver:
         self.model = PeftModel.from_pretrained(self.model, checkpoint_dir)
         self.model.eval()
 
-
+    def __del__(self):
+        print("ARCSolver destroyed")

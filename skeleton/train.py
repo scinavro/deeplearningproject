@@ -19,11 +19,11 @@ LORA_ALPHA = 16
 LORA_DROPOUT = 0.05
 LEARNING_RATE = 2e-4
 
-CHECKPOINT_NAME = "temp_test"
-MAX_WINDOWS_PER_TASK = 3 # 각 task에서 학습할 조합(3+1 in/out)의 최대 개수
+CHECKPOINT_NAME = "task-cycle-with-epoch-3"
+MAX_WINDOWS_PER_TASK = 8 # 각 task에서 학습할 조합(3+1 in/out)의 최대 개수
 NUM_EPOCHS = 18
-MAX_STEPS = 12 # 원래 step은 300 * MAX_WINDOWS_PER_TASK * NUM_EPOCHS 까지 돌아야함. early_stop 하고 싶으면 그거보다 작게 설정하면 됨.
-SAVE_EVERY_STEPS = 3  # 중간 저장 간격
+MAX_STEPS = 43200 # 원래 step은 300 * MAX_WINDOWS_PER_TASK * NUM_EPOCHS 까지 돌아야함. early_stop 하고 싶으면 그거보다 작게 설정하면 됨.
+SAVE_EVERY_STEPS = 7200  # 중간 저장 간격
 
 def save_hyperparameters(checkpoint_dir, train_duration=None, partial_duration=None, step=None):
     import json
@@ -187,6 +187,7 @@ def main():
                     continue
 
             # print("start_by_epoch:", start_by_epoch)
+            print()
             print(f"[Epoch {epoch+1} | Step {step} | Task {idx+1} | {task['task'].split('.')[0]}] loss: {loss.item():.4f}")
             
             if early_stop:

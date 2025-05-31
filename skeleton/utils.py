@@ -77,3 +77,33 @@ def setup_logging(log_path):
     log_file = open(log_path, "w")
     sys.stdout = Tee(sys.__stdout__, log_file)
     sys.stderr = Tee(sys.__stderr__, log_file)  # 에러도 함께 기록
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_arc_example(train_examples, test_input, generated_output, task_id=None):
+    """
+    Visualize 3 training pairs + test input/output
+    """
+    fig, axes = plt.subplots(4, 2, figsize=(6, 12))  # 4 rows: 3 train, 1 test
+
+    for i, ex in enumerate(train_examples):
+        axes[i, 0].imshow(np.array(ex['input']), cmap='tab20', vmin=0, vmax=9)
+        axes[i, 0].set_title(f"Train {i+1} Input")
+        axes[i, 1].imshow(np.array(ex['output']), cmap='tab20', vmin=0, vmax=9)
+        axes[i, 1].set_title(f"Train {i+1} Output")
+
+    axes[3, 0].imshow(np.array(test_input), cmap='tab20', vmin=0, vmax=9)
+    axes[3, 0].set_title("Test Input")
+
+    axes[3, 1].imshow(np.array(generated_output), cmap='tab20', vmin=0, vmax=9)
+    axes[3, 1].set_title("Generated Output")
+
+    for ax in axes.flatten():
+        ax.axis('off')
+
+    if task_id:
+        fig.suptitle(f"Task {task_id}", fontsize=14)
+
+    plt.tight_layout()
+    plt.show()

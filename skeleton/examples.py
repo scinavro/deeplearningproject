@@ -1,79 +1,43 @@
-from utils import render_grid
-from rich import print
 import os
-import pandas as pd
-from typing import List
 import json
 import numpy as np
+from utils import render_grid
+from rich import print
 
+# ✅ 하이퍼파라미터
+N_TASKS = 5              # 시각화할 태스크 개수
+EXAMPLES_PER_TASK = 3    # 각 태스크 내 시각화할 input/output 예제 수
 
-def load_data(base_dir):
-    filenames = os.listdir(base_dir)
-    data_files = [os.path.join(base_dir, p) for p in filenames if ".json" in p]
-
-    dataset = []
-    for fn in data_files:
-        with open(fn) as fp:
-            data = json.load(fp)
-        dataset.append(data)
-
-    filenames = [fn.split(".")[0] for fn in filenames]
-    data = []
-    MAX_LEN = 10
+def load_arc_tasks(base_dir):
+    filenames = sorted([f for f in os.listdir(base_dir) if f.endswith(".json")])
     rng = np.random.default_rng(42)
+    selected_files = rng.choice(filenames, size=N_TASKS, replace=False)
 
-    N = len(dataset)
+    tasks = []
+    for filename in selected_files:
+        with open(os.path.join(base_dir, filename)) as f:
+            examples = json.load(f)
+            tasks.append((filename.split(".")[0], examples))
+    return tasks
 
-    while len(data) < MAX_LEN:
-        task_idx = rng.integers(0, N)
-        task = dataset[task_idx]
-        file_name = filenames[task_idx]
+def visualize_tasks(tasks):
+    for task_name, examples in tasks:
+        print(f"\n[bold yellow]🧩 Task: {task_name}[/bold yellow] (total {len(examples)} examples)")
 
-        n_task = len(task)
-        grids_idx =  rng.choice(n_task, size=4, replace=True)
-        train_grids = [task[i] for i in grids_idx[:3]]
-        test_grids = [task[i] for i in grids_idx[3:]]
+        num_to_show = min(EXAMPLES_PER_TASK, len(examples))
+        for i in range(num_to_show):
+            example = examples[i]
+            print(f"[cyan]Example {i+1}[/cyan]")
+            print("[green]Input:[/green]")
+            render_grid(example['input'])
+            print("[green]Output:[/green]")
+            render_grid(example['output'])
+            print("-" * 40)
 
-        test_inputs = [{'input': grid['input']} for grid in test_grids]
-        test_outputs = [grid['output'] for grid in test_grids]
-        test_outputs_transformed = [{'output': grid} for grid in test_outputs]
-        combined_tests = []
-        for test_input, test_output in zip(test_inputs, test_outputs_transformed):
-            combined_tests.append({'input': test_input['input'], 'output': test_output['output']})
+def main():
+    base_dir = "../dataset"
+    tasks = load_arc_tasks(base_dir)
+    visualize_tasks(tasks)
 
-        data.append({
-            'task': file_name,
-            'train': train_grids,
-            'test_input': test_inputs,
-            'test_output': test_outputs,
-            'test': combined_tests,
-        })
-
-    df = pd.DataFrame(data)
-    return df
-
-
-N_data = 4
-data_path = "/workspace/dataset"
-df = load_data(data_path)
-
-from datasets import Dataset
-dataset = Dataset.from_pandas(df).shuffle(42).select(range(N_data))
-
-print("-----Dataset Statistics-----")
-print(dataset)
-print("-----Train Question Example-----")
-print(dataset[0]['train'])
-print("-----Test Question Example-----")
-print(dataset[0]['test'])
-
-
-print("Train Input")
-render_grid(dataset[0]['train'][0]['input'])
-print("Train Output")
-render_grid(dataset[0]['train'][0]['output'])
-
-print("Test Input")
-render_grid(dataset[0]['test'][0]['input'])
-print("Test Output")
-render_grid(dataset[0]['test'][0]['output'])
+if __name__ == "__main__":
+    main()

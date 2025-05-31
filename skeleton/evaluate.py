@@ -10,10 +10,13 @@ from transformers import set_seed
 from datasets import Dataset
 from zoneinfo import ZoneInfo
 
-from utils import split_examples
+from utils import split_examples, plot_arc_example
 
-MAX_DATA = 1  # number of tasks to evaluate (1 set eval / 1 task)
-CHECKPOINT_BASE_DIR = "checkpoints/<model name>"
+AUTO_EVAL = True
+
+MAX_DATA = 100  # number of tasks to evaluate (1 set eval / 1 task)
+CHECKPOINT_BASE_DIR = "checkpoints/task-cycle-with-epoch-3"
+VISUALIZE = False
 
 def check_match_and_pixel_accuracy(pred, truth):
     pred = np.array(pred, dtype=np.uint8)
@@ -55,7 +58,7 @@ def load_data(base_dir, max_data=300):
 def evaluate_checkpoint(checkpoint_dir, dataset, solver_token, ckpt_idx, total_ckpt):
     solver = ARCSolver(token=solver_token)
     solver.prepare_evaluation(checkpoint_dir=checkpoint_dir)
-
+    
     match_count = 0
     pixel_total = 0
     pixel_correct = 0
@@ -68,10 +71,22 @@ def evaluate_checkpoint(checkpoint_dir, dataset, solver_token, ckpt_idx, total_c
         pixel_total += np.array(data["test"][0]["output"]).size
         pixel_correct += pixel_acc * np.array(data["test"][0]["output"]).size
         task_lines.append(f"[Task {idx+1}] {data['task']}: match={match}, pixel_acc={pixel_acc*100:.2f}%\n")
+        if VISUALIZE:
+            plot_arc_example(data["train"], data["test"][0]["input"], pred, task_id=data["task"])
+            input("Press Enter to continue to the next task...")
+
 
     whole_acc = (match_count / len(dataset)) * 100
     pixel_acc = (pixel_correct / pixel_total) * 100
-    return whole_acc, pixel_acc, task_lines
+    model_id = solver.model_id
+
+    import gc
+    import torch
+    del solver
+    torch.cuda.empty_cache()
+    gc.collect()
+    
+    return whole_acc, pixel_acc, task_lines, model_id
 
 import argparse
 
@@ -81,8 +96,13 @@ def parse_args():
     return parser.parse_args()
 
 def main():
-    args = parse_args()
-    CHECKPOINT_BASE_DIR = args.checkpoint_dir
+    if AUTO_EVAL:
+        args = parse_args()
+        global CHECKPOINT_BASE_DIR, MAX_DATA, VISUALIZE
+        CHECKPOINT_BASE_DIR = args.checkpoint_dir
+        MAX_DATA = 100
+        VISUALIZE = False
+
     print(f"[Evaluation Target]: {CHECKPOINT_BASE_DIR}")
 
     kst_now = datetime.datetime.now(ZoneInfo("Asia/Seoul"))
@@ -94,13 +114,14 @@ def main():
     eval_dataset = Dataset.from_pandas(eval_df)
 
     print("🔍 Evaluating all checkpoints...")
-    subdirs = [d for d in os.listdir(CHECKPOINT_BASE_DIR) if d.startswith("checkpoint-") or d == "checkpoint-final"]
-    subdirs.sort(key=lambda x: (x != "checkpoint-final", int(x.split("-")[-1]) if x != "checkpoint-final" else float("inf")))
+    subdirs = [d for d in os.listdir(CHECKPOINT_BASE_DIR) if d.startswith("checkpoint-")]
+    subdirs.sort(key=lambda x: int(x.split("-")[-1]) if x != "checkpoint-final" else float("inf"))
 
     timestamp = kst_now.strftime("%m%d_%H%M")
     log_group = f"{timestamp}_{CHECKPOINT_BASE_DIR.split('/')[-1]}"  # ✅ 수정: 그룹 이름 지정
     log_dir = os.path.join("logs", log_group)  # ✅ 수정: logs/group_name/
     os.makedirs(log_dir, exist_ok=True)
+    
 
     for idx, ckpt_name in enumerate(subdirs):
         ckpt_path = os.path.join(CHECKPOINT_BASE_DIR, ckpt_name)
@@ -108,7 +129,7 @@ def main():
             continue
         
         eval_start = time.time()
-        whole_acc, pixel_acc, task_lines = evaluate_checkpoint(ckpt_path, eval_dataset, token, idx, len(subdirs))
+        whole_acc, pixel_acc, task_lines, model_id = evaluate_checkpoint(ckpt_path, eval_dataset, token, idx, len(subdirs))
         eval_end = time.time()
 
         # ✅ 수정: hyperparams 로딩
@@ -130,7 +151,7 @@ def main():
             f"[Summary]\n",
             f"Whole-grid accuracy: {whole_acc:.2f} %\n",
             f"Pixel-level accuracy: {pixel_acc:.2f} %\n",
-            f"[Model]: {ARCSolver(token).model.config._name_or_path}\n",
+            f"[Model]: {model_id}\n",
             f"[Checkpoint]: {ckpt_path}\n",
             f"[# Evaluation Tasks]: {len(eval_dataset)}\n",
             f"[Evaluation elapsed time]: {elapsed_str}\n",
